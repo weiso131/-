@@ -1,0 +1,127 @@
+#include "SoftwareSerial.h"//模組匯入
+#include <HUSKYLENS.h>
+#include <Servo.h>
+
+Servo servo_x;//馬達編號
+Servo servo_y;
+Servo servo_y_2;
+
+SoftwareSerial myserial(10,11);
+
+HUSKYLENS huskylens;
+
+double x = 0,y = 0,bx = -1,by,movex,movey;//bx,by是上一次測定的所在座標，movex,movey是速率
+
+int start,ends;//時間計算啟始和結束
+
+int width,height;
+
+int screen_center_x = 160,screen_center_y = 120;//螢幕中心座標
+
+float moto_x_angle = 0,moto_y_angle = 0;//馬達起始角度
+int speed_x,speed_y;
+int pin_x = 4,pin_y_1 = 2,pin_y_2 = 3;
+void setup()
+{
+  Serial.begin(9600);
+  myserial.begin(9600);
+  while (!huskylens.begin(myserial))//測試AI相機是否運行正常
+  {
+    Serial.println("begin fail");
+    delay(100);
+  }
+  servo_x.attach(pin_x);
+  servo_y.attach(pin_y_1);
+  servo_y_2.attach(pin_y_2);
+  x_moto_turn(x,0);
+  y_moto_turn(y,0);
+  delay(100);
+  
+}
+void printResult(HUSKYLENSResult result);
+int xlimit = 0,ylimit = 0;
+void loop()
+{
+  speed_x = 2;
+  speed_y = 3;
+  if(!huskylens.request())
+  {
+    Serial.println("fail to request data from huskylens");
+    x_moto_turn(x,0);
+    y_moto_turn(y,0);
+    delay(100);
+  }
+    
+  else if(!huskylens.isLearned())
+  {
+    Serial.println("noting learned");
+    x_moto_turn(x,0);
+    y_moto_turn(y,0);
+    delay(100);
+  }
+    
+  else if(!huskylens.available())
+  {
+    Serial.println("no block or arrow appears on the screen");
+    x_moto_turn(x,0);
+    y_moto_turn(y,0);
+    delay(100);
+  }
+  else
+  {
+    Serial.println("偵測到物體");
+    
+    HUSKYLENSResult result = huskylens.read();
+    
+    x = result.xCenter;
+    y = result.yCenter;
+    Serial.print("x:");
+    Serial.println(x);
+    Serial.print("y:");
+    Serial.println(y);
+    x_moto_turn(x,speed_x);
+    y_moto_turn(y,speed_y);
+  }
+}
+void x_moto_turn(int x,float speed_x)//x軸馬達控制程式
+{
+  if (x - screen_center_x > 0)//決定向哪邊轉向
+  {
+    speed_x *= 1;
+    Serial.println("右");
+    
+  }
+      
+  else if(x - screen_center_x < 0)
+  {
+    speed_x *= -1;
+    Serial.println("左");
+  }
+      
+  else
+      speed_x *= 0;
+  servo_x.write(90 - speed_x);
+  Serial.println(90 - speed_x);
+  Serial.println("x軸馬達轉動----------");
+}
+
+void y_moto_turn(int y,float speed_y)//y軸馬達控制程式
+{
+  if (y - screen_center_y > 0)//決定向哪邊轉向
+  {
+    speed_y *= -1;
+    Serial.println("下");
+  } 
+  else if(y - screen_center_y < 0)
+  {
+    speed_y *= 1;
+    Serial.println("上");
+  }
+      
+  else
+      speed_y *= 0;
+  
+  servo_y.write(90 - speed_y);
+  Serial.println(90 - speed_y);
+  Serial.println("y軸馬達轉動----------");
+}
