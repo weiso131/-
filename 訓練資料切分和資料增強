@@ -1,0 +1,137 @@
+import os
+import random
+import cv2
+import numpy as np
+
+#避免cv2讀取不到中文路徑
+def cv_imread(path):
+    new_path = cv2.imdecode(np.fromfile(path,dtype = np.uint8), -1)
+    return new_path
+
+#########################################################################################
+#source from:
+#https://www.it145.com/9/177835.html
+# 新增椒鹽噪聲
+def spiced_salt_noise(img,prob):
+    output = np.zeros(img.shape,np.uint8)
+    thres = 1 - prob
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            rdn = random.random()
+            if rdn < prob:
+                output[i][j] = 0 # 椒鹽噪聲由純黑和純白的畫素點隨機組成
+            elif rdn > thres:
+                output[i][j] = 255
+            else:
+                output[i][j] = img[i][j]
+    return output
+
+# 新增高斯噪聲
+def gasuss_noise(image, mean = 0, var = 0.01):
+    '''
+        新增高斯噪聲
+        mean : 均值
+        var : 方差，方差越大越模糊
+    '''
+    image = np.array(image/255, dtype=float)
+    noise = np.random.normal(mean, var ** 0.5, image.shape)
+    out = image + noise
+    if out.min() < 0:
+        low_clip = -1.
+    else:
+        low_clip = 0.
+    out = np.clip(out, low_clip, 1.0)
+    out = np.uint8(out*255)
+    return out
+
+# 模糊
+def blur(img,scale):
+    img = cv2.blur(img,(scale,scale)) # scale越大越模糊
+    return img
+def rotate_img(img,angle):
+    (h, w, d) = img.shape # 讀取圖片大小
+    center = (w // 2, h // 2) # 找到圖片中心
+    
+    # 第一個參數旋轉中心，第二個參數旋轉角度(-順時針/+逆時針)，第三個參數縮放比例
+    M = cv2.getRotationMatrix2D(center, angle, 1.0)
+    
+    # 第三個參數變化後的圖片大小
+    rotate_img = cv2.warpAffine(img, M, (w, h))
+    
+    return rotate_img
+#############################################################################################
+
+
+
+path = "C:/Users/black/Desktop/AI contest/fruit/new_train/"#原訓練資料
+target = "C:/Users/black/Desktop/data_set/"#新的訓練資料存放位置檔案路徑
+dir_list = os.listdir(path)
+
+for i in range(1,10):#製作資料夾編號1到10
+    if (os.path.isdir(target + str(i))) == False:
+        os.mkdir(target + str(i))
+
+for f in range(len(dir_list)):
+    fruit = dir_list[f]
+
+    pic_list = os.listdir(path + fruit + '/')
+    list_size = len(pic_list)
+    
+    for i in range(1,10):#將目標位置的中文替換成數字，以防止imwrite發生bug
+        if os.path.isdir(target + str(i) + '/' + fruit):
+            os.rename(target + str(i) + '/' + fruit,target + str(i) + '/' + str(f))
+
+        if (os.path.isdir(target + str(i) + '/' + str(f))) == False:
+            os.mkdir(target + str(i) + '/' + str(f))
+            
+    for i in range(0,list_size):
+        print(path + fruit + '/' + pic_list[i])
+        img = cv_imread(path + fruit + '/' + pic_list[i])
+        img = cv2.resize(img,(256,256))
+        
+        for a in range(0,360,30):
+            pic = rotate_img(img, a)#原圖
+            spicy = spiced_salt_noise(pic,0.01)# 新增椒鹽噪聲
+            gasuss = gasuss_noise(pic)#高斯噪音
+            blurimg = blur(pic,5)# 模糊
+            
+            name = str(i) + '_' + str(a)
+            if (i % 10 == 9 or i % 10 == 0):#驗證集
+                cv2.imwrite(target + str(9) + '/' + str(f) + '/' + name + ".jpg", pic)
+                cv2.imwrite(target + str(9) + '/' + str(f) + '/' + name + "_1" + ".jpg", spicy)
+                cv2.imwrite(target + str(9) + '/' + str(f) + '/' + name + "_2" + ".jpg", gasuss)
+                cv2.imwrite(target + str(9) + '/' + str(f) + '/' + name + "_3" + ".jpg", blurimg)
+                cv2.imwrite(target + str(9) + '/' + str(f) + '/' + name + "_1_2" + ".jpg", gasuss_noise(spicy))
+                cv2.imwrite(target + str(9) + '/' + str(f) + '/' + name + "_2_3" + ".jpg", blur(gasuss,5))
+                cv2.imwrite(target + str(9) + '/' + str(f) + '/' + name + "_3_1" + ".jpg", spiced_salt_noise(blurimg,0.01))
+                cv2.imwrite(target + str(9) + '/' + str(f) + '/' + name + "_1_2_3" + ".jpg", blur(gasuss_noise(spicy),5))
+                
+                
+            else:#訓練集，這部分後來被我手動挪到另一個資料夾train
+                cv2.imwrite(target + str(i % 10) + '/' + str(f) + '/' + name + ".jpg", pic)
+                cv2.imwrite(target + str(i % 10) + '/' + str(f) + '/' + name + "_1" + ".jpg", spicy)
+                cv2.imwrite(target + str(i % 10) + '/' + str(f) + '/' + name + "_2" + ".jpg", gasuss)
+                cv2.imwrite(target + str(i % 10) + '/' + str(f) + '/' + name + "_3" + ".jpg", blurimg)
+                cv2.imwrite(target + str(i % 10) + '/' + str(f) + '/' + name + "_1_2" + ".jpg", gasuss_noise(spicy))
+                cv2.imwrite(target + str(i % 10) + '/' + str(f) + '/' + name + "_2_3" + ".jpg", blur(gasuss,5))
+                cv2.imwrite(target + str(i % 10) + '/' + str(f) + '/' + name + "_3_1" + ".jpg", spiced_salt_noise(blurimg,0.01))
+                cv2.imwrite(target + str(i % 10) + '/' + str(f) + '/' + name + "_1_2_3" + ".jpg", blur(gasuss_noise(spicy),5))
+
+
+    
+    for i in range(1,10):#將檔名改回中文
+        if (os.path.isdir(target + str(i) + '/' + str(f))):
+            os.rename(target + str(i) + '/' + str(f), target + str(i) + '/' + fruit)
+        
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
